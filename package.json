@@ -30,7 +30,7 @@
     "rimraf": "^5.0.5",
     "shiki": "^0.14.7",
     "spago": "next",
-    "tailwindcss": "^3.4.1"
+    "tailwindcss": "^4.0.0"
   },
   "devDependencies": {
     "@types/bun": "^1.2.15"
