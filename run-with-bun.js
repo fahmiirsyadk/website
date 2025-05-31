@@ -241,98 +241,125 @@ const buildStats = {
   }
 };
 
-// Replace the buildSite function with a more robust version
-async function buildSite() {
-  // Reset build stats
-  buildStats.reset().start();
+// Function to copy all assets from source to dist
+async function copyAssets() {
+  console.log('📦 Copying assets to dist directory...');
   
-  logger.build('Building site...');
-  
-  // Clean if needed
-  if (isClean || isCleanAll) {
+  // Create all necessary asset directories in dist
+  for (const [urlPath, sourcePath] of Object.entries(ASSET_PATHS)) {
+    const destPath = path.join(distDir, urlPath);
     try {
-      cleanBuild(isCleanAll);
+      if (!fs.existsSync(destPath)) {
+        fs.mkdirSync(destPath, { recursive: true });
+        console.log(`📁 Created asset directory: ${destPath}`);
+      }
     } catch (error) {
-      logger.error(`Error cleaning build directories: ${error.message}`);
-      buildStats.failures++;
-      // Continue with the build despite cleaning errors
+      console.error(`❌ Error creating directory ${destPath}:`, error.message);
     }
   }
   
-  try {
-    // 1. Build PureScript
-    logger.build('Building PureScript...');
-    
-    if (!buildPureScript()) {
-      logger.error('PureScript build failed');
-      buildStats.failures++;
-      return false;
+  // Copy all assets
+  for (const [urlPath, sourcePath] of Object.entries(ASSET_PATHS)) {
+    if (fs.existsSync(sourcePath)) {
+      const files = getAllFiles(sourcePath);
+      for (const file of files) {
+        const relativePath = path.relative(sourcePath, file);
+        const destFile = path.join(distDir, urlPath, relativePath);
+        
+        // Create directory for the destination file if needed
+        const destFileDir = path.dirname(destFile);
+        if (!fs.existsSync(destFileDir)) {
+          fs.mkdirSync(destFileDir, { recursive: true });
+        }
+        
+        try {
+          fs.copyFileSync(file, destFile);
+          console.log(`✅ Copied: ${relativePath}`);
+        } catch (error) {
+          console.error(`❌ Error copying asset ${relativePath}:`, error.message);
+        }
+      }
     }
-    
-    buildStats.successes++;
-    
-    // 2. Ensure asset directories exist
-    ensureAssetDirectories();
-    
-    // 3. Process assets (CSS and other assets)
-    logger.build('Processing assets...');
-    try {
-      await processAssets(isProduction);
-      buildStats.successes++;
-    } catch (error) {
-      logger.error(`Error processing assets: ${error.message}`);
-      buildStats.failures++;
-      // Continue with site generation despite asset errors
-    }
-    
-    // 4. Generate the site
-    logger.build('Generating site content...');
-    if (!await generateSite()) {
-      logger.error('Site generation failed');
-      buildStats.failures++;
-      return false;
-    }
-    
-    buildStats.successes++;
-    
-    // 5. Check for missing assets
-    logger.build('Checking for missing assets...');
-    try {
-      copyMissingAssets();
-      buildStats.successes++;
-    } catch (error) {
-      logger.error(`Error copying missing assets: ${error.message}`);
-      buildStats.failures++;
-      // Continue despite asset copying errors
-    }
-    
-    // End build stats timing
-    buildStats.end();
-    
-    // Print build summary
-    logger.success(`Site build completed in ${buildStats.totalTime.toFixed(2)}s`);
-    
-    if (isDebug) {
-      buildStats.printSummary();
-    }
-    
-    if (isProduction) {
-      logger.success(`Production build ready in the "${distDir}" directory`);
-    }
-    
-    return buildStats.failures === 0;
-  } catch (error) {
-    // Catch any unexpected errors
-    buildStats.end();
-    logger.error(`Unexpected error during build: ${error.message}`);
-    
-    if (isDebug) {
-      console.error(error.stack);
-    }
-    
-    buildStats.failures++;
-    buildStats.printSummary();
+  }
+  
+  console.log('✅ Asset copying complete');
+}
+
+// Update the buildSite function to use copyAssets
+async function buildSite() {
+  console.log('🔄 Building site...');
+  
+  // Clean if needed
+  if (isClean || isCleanAll) {
+    cleanBuild(isCleanAll);
+  }
+  
+  // 1. Build PureScript
+  if (!buildPureScript()) {
+    console.error('❌ PureScript build failed');
     return false;
+  }
+  
+  // 2. Ensure asset directories exist
+  ensureAssetDirectories();
+  
+  // 3. Copy all assets
+  await copyAssets();
+  
+  // 4. Process CSS
+  if (!compileTailwindCSS()) {
+    console.error('❌ CSS compilation failed');
+    return false;
+  }
+  
+  // 5. Generate the site
+  if (!await generateSite()) {
+    console.error('❌ Site generation failed');
+    return false;
+  }
+  
+  // 6. Check for missing assets
+  copyMissingAssets();
+  
+  console.log('✅ Site build completed successfully!');
+  return true;
+}
+
+// Enhanced file watcher with debouncing
+function setupEnhancedFileWatcher(directory, onChange) {
+  try {
+    console.log(`👀 Setting up file watcher for ${directory}`);
+    
+    // Create watcher for the directory
+    const watcher = fs.watch(directory, { recursive: true }, (eventType, filename) => {
+      if (!filename) return;
+      
+      const fullPath = path.join(directory, filename);
+      const ext = path.extname(filename).toLowerCase();
+      
+      // Skip certain files and directories
+      if (
+        filename.startsWith('.') || 
+        filename.includes('node_modules') ||
+        filename.includes('.git')
+      ) {
+        return;
+      }
+      
+      // Call the onChange handler
+      onChange(eventType, fullPath);
+    });
+    
+    return {
+      close: () => {
+        watcher.close();
+      }
+    };
+  } catch (error) {
+    console.error('❌ Error setting up file watcher:', error.message);
+    return {
+      close: () => {}
+    };
   }
 }
 
@@ -517,10 +544,27 @@ function buildPureScript() {
 async function generateSite() {
   console.log('🔄 Generating site from PureScript...');
   try {
+    // Ensure dist directory exists first
+    if (!fs.existsSync(distDir)) {
+      try {
+        fs.mkdirSync(distDir, { recursive: true });
+        console.log('📁 Created dist directory');
+      } catch (error) {
+        console.error('❌ Error creating dist directory:', error.message);
+        return false;
+      }
+    }
+    
     // Create cache directory if it doesn't exist
     const cacheDir = path.join(distDir, '.cache');
-    if (!fs.existsSync(cacheDir)) {
-      fs.mkdirSync(cacheDir, { recursive: true });
+    try {
+      if (!fs.existsSync(cacheDir)) {
+        fs.mkdirSync(cacheDir, { recursive: true });
+        console.log('📁 Created cache directory');
+      }
+    } catch (error) {
+      console.warn('⚠️ Failed to create cache directory:', error.message);
+      // Continue without cache
     }
     
     // Check if we need to regenerate everything or can use cache
@@ -532,177 +576,194 @@ async function generateSite() {
       try {
         const cacheContent = fs.readFileSync(cacheFile, 'utf-8');
         cache = JSON.parse(cacheContent);
+        console.log('📦 Loaded existing cache');
       } catch (e) {
         console.warn('⚠️ Failed to read cache file, will regenerate all pages');
+        // Initialize new cache file
+        try {
+          fs.writeFileSync(cacheFile, JSON.stringify(cache, null, 2));
+          console.log('📦 Initialized new cache file');
+        } catch (writeError) {
+          console.warn('⚠️ Failed to initialize cache file:', writeError.message);
+        }
+      }
+    } else {
+      // Initialize new cache file
+      try {
+        fs.writeFileSync(cacheFile, JSON.stringify(cache, null, 2));
+        console.log('📦 Initialized new cache file');
+      } catch (writeError) {
+        console.warn('⚠️ Failed to initialize cache file:', writeError.message);
       }
     }
     
     // Import the homepage function from the compiled PureScript
-    const { homepage } = require('./output/Page.Index/index.js');
-    const { renderBlogpost } = require('./output/Page.Blogpost/index.js');
-    
-    // Extract the collections manually
-    const { extractArticles, extractProjects } = require('./src/Site/Collections.js');
-    
-    // Get the data
-    console.log('📊 Loading content collections...');
-    const [articles, projects] = await Promise.all([
-      extractArticles(),
-      extractProjects()
-    ]);
-    
-    // Create the collections object for PureScript
-    const collections = {
-      collections: {
-        posts: articles,
-        projects: projects
-      }
-    };
-    
-    // Generate the HTML for index
-    console.log('🏠 Generating homepage...');
-    const html = homepage(collections);
-    
-    // Ensure the dist directory exists
-    const indexPath = path.join(distDir, 'index.html');
-    
-    // Write the HTML to index.html
-    fs.writeFileSync(indexPath, html);
-    
-    console.log('✅ Site index generation successful');
-    
-    // Generate blog post pages
-    console.log('📝 Generating blog post pages...');
-    
-    // Create articles directory if it doesn't exist
-    const articlesDir = path.join(distDir, 'articles');
-    if (!fs.existsSync(articlesDir)) {
-      fs.mkdirSync(articlesDir, { recursive: true });
-    }
-    
-    // Process each article and project to generate individual pages
-    const { getBlogPostImpl, generateBlogPostImpl } = require('./src/Site/BlogGenerator.js');
-    
-    // Helper function to check if a path is a file
-    function isFile(filePath) {
+    try {
+      const { homepage } = require('./output/Page.Index/index.js');
+      const { renderBlogpost } = require('./output/Page.Blogpost/index.js');
+      
+      // Extract the collections manually
+      const { extractArticles, extractProjects } = require('./src/Site/Collections.js');
+      
+      // Get the data
+      console.log('📊 Loading content collections...');
+      const [articles, projects] = await Promise.all([
+        extractArticles(),
+        extractProjects()
+      ]);
+      
+      // Create the collections object for PureScript
+      const collections = {
+        collections: {
+          posts: articles,
+          projects: projects
+        }
+      };
+      
+      // Generate the HTML for index
+      console.log('🏠 Generating homepage...');
+      const html = homepage(collections);
+      
+      // Ensure the dist directory exists
+      const indexPath = path.join(distDir, 'index.html');
+      
+      // Write the HTML to index.html
+      fs.writeFileSync(indexPath, html);
+      
+      console.log('✅ Site index generation successful');
+      
+      // Generate blog post pages
+      console.log('📝 Generating blog post pages...');
+      
+      // Create articles directory if it doesn't exist
+      const articlesDir = path.join(distDir, 'articles');
       try {
-        return fs.existsSync(filePath) && fs.statSync(filePath).isFile();
+        if (!fs.existsSync(articlesDir)) {
+          fs.mkdirSync(articlesDir, { recursive: true });
+          console.log('📁 Created articles directory');
+        }
       } catch (error) {
-        console.error(`Error checking if path is a file: ${filePath}`, error);
+        console.error('❌ Error creating articles directory:', error.message);
         return false;
       }
-    }
-    
-    // Generate pages for each article and project
-    const allSlugs = [
-      ...articles.map(article => article.slug),
-      ...projects.map(project => project.slug)
-    ];
-    
-    // Process slugs in parallel but with concurrency control
-    const concurrency = 5; // Process 5 at a time
-    const chunks = [];
-    
-    // Split slugs into chunks for controlled parallelism
-    for (let i = 0; i < allSlugs.length; i += concurrency) {
-      chunks.push(allSlugs.slice(i, i + concurrency));
-    }
-    
-    let totalGenerated = 0;
-    let totalSkipped = 0;
-    
-    // Process each chunk sequentially
-    for (const chunk of chunks) {
-      // Process slugs in this chunk in parallel
-    const results = await Promise.all(
-        chunk.map(async (slug) => {
-        try {
-          if (!slug) {
-            console.error("Encountered empty slug, skipping");
-              return { status: 'error', slug };
-            }
-            
-            // Check if this post has changed and needs regeneration
-            const contentHash = computePostHash(articles, projects, slug);
-            const postDir = path.join(articlesDir, slug);
-            const outputPath = path.join(postDir, 'index.html');
-            
-            // Skip regeneration if the post hasn't changed
-            if (
-              cache.pages[slug] === contentHash && 
-              fs.existsSync(outputPath) && 
-              !isClean && 
-              !isCleanAll
-            ) {
-              totalSkipped++;
-              return { status: 'cached', slug };
-            }
-            
-            // Generate post content
-          const getBlogPostFn = await getBlogPostImpl(slug);
-          const postData = await getBlogPostFn();
-          
-          // Check if we got valid post data
-          if (!postData || !postData.title) {
-            console.error(`Invalid post data for slug: ${slug}`);
-              return { status: 'error', slug };
-          }
-          
-          // Generate HTML
-          const postHtml = renderBlogpost(postData);
-          
-          // Create a directory for this specific post
-          if (!fs.existsSync(postDir)) {
-            fs.mkdirSync(postDir, { recursive: true });
-          } else if (!fs.statSync(postDir).isDirectory()) {
-            // If it exists but is not a directory, remove it and create directory
-            console.warn(`Path exists but is not a directory: ${postDir}, recreating...`);
-            fs.unlinkSync(postDir);
-            fs.mkdirSync(postDir, { recursive: true });
-          }
-          
-          // Write to file as index.html in the post directory
-          fs.writeFileSync(outputPath, postHtml);
-          
-            // Update cache
-            cache.pages[slug] = contentHash;
-            
-            totalGenerated++;
-            return { status: 'generated', slug };
-        } catch (error) {
-          console.error(`❌ Error generating blog post ${slug}:`, error);
-            return { status: 'error', slug, error };
-        }
-      })
-    );
-    }
-    
-    // Update cache file
-    cache.lastBuild = Date.now();
-    fs.writeFileSync(cacheFile, JSON.stringify(cache, null, 2));
-    
-    console.log(`✅ Generated ${totalGenerated} blog posts, reused ${totalSkipped} from cache`);
-    
-    // Clean up old .html files (they've been replaced by the /slug/index.html structure)
-    const oldHtmlFiles = fs.readdirSync(articlesDir)
-      .filter(file => file.endsWith('.html'))
-      .map(file => path.join(articlesDir, file))
-      .filter(filePath => isFile(filePath)); // Only include actual files, not directories
-    
-    if (oldHtmlFiles.length > 0) {
-    console.log(`Found ${oldHtmlFiles.length} old HTML files to clean up`);
-    
-    oldHtmlFiles.forEach(file => {
-      try {
-        fs.unlinkSync(file);
-        console.log(`🧹 Removed old file: ${file}`);
-      } catch (error) {
-        console.error(`❌ Error removing old file ${file}:`, error);
+      
+      // Process each article and project to generate individual pages
+      const { getBlogPostImpl, generateBlogPostImpl } = require('./src/Site/BlogGenerator.js');
+      
+      // Generate pages for each article and project
+      const allSlugs = [
+        ...articles.map(article => article.slug),
+        ...projects.map(project => project.slug)
+      ].filter(Boolean); // Filter out any undefined/null slugs
+      
+      console.log(`🔄 Processing ${allSlugs.length} pages...`);
+      
+      // Process slugs in parallel but with concurrency control
+      const concurrency = 5; // Process 5 at a time
+      const chunks = [];
+      
+      // Split slugs into chunks for controlled parallelism
+      for (let i = 0; i < allSlugs.length; i += concurrency) {
+        chunks.push(allSlugs.slice(i, i + concurrency));
       }
-    });
+      
+      let totalGenerated = 0;
+      let totalSkipped = 0;
+      let totalErrors = 0;
+      
+      // Process each chunk sequentially
+      for (const chunk of chunks) {
+        // Process slugs in this chunk in parallel
+        const results = await Promise.all(
+          chunk.map(async (slug) => {
+            try {
+              if (!slug) {
+                console.error("Encountered empty slug, skipping");
+                totalErrors++;
+                return { status: 'error', slug };
+              }
+              
+              // Check if this post has changed and needs regeneration
+              const contentHash = computePostHash(articles, projects, slug);
+              const postDir = path.join(articlesDir, slug);
+              const outputPath = path.join(postDir, 'index.html');
+              
+              // Skip regeneration if the post hasn't changed
+              if (
+                cache.pages[slug] === contentHash && 
+                fs.existsSync(outputPath) && 
+                !isClean && 
+                !isCleanAll
+              ) {
+                totalSkipped++;
+                return { status: 'cached', slug };
+              }
+              
+              // Create a directory for this specific post
+              try {
+                if (!fs.existsSync(postDir)) {
+                  fs.mkdirSync(postDir, { recursive: true });
+                }
+              } catch (error) {
+                console.error(`❌ Error creating directory for ${slug}:`, error.message);
+                totalErrors++;
+                return { status: 'error', slug };
+              }
+              
+              // Generate post content
+              const getBlogPostFn = await getBlogPostImpl(slug);
+              const postData = await getBlogPostFn();
+              
+              // Check if we got valid post data
+              if (!postData || !postData.title) {
+                console.error(`Invalid post data for slug: ${slug}`);
+                totalErrors++;
+                return { status: 'error', slug };
+              }
+              
+              // Generate HTML
+              const postHtml = renderBlogpost(postData);
+              
+              // Write to file as index.html in the post directory
+              try {
+                fs.writeFileSync(outputPath, postHtml);
+                
+                // Update cache
+                cache.pages[slug] = contentHash;
+                
+                totalGenerated++;
+                return { status: 'generated', slug };
+              } catch (error) {
+                console.error(`❌ Error writing file for ${slug}:`, error.message);
+                totalErrors++;
+                return { status: 'error', slug };
+              }
+            } catch (error) {
+              console.error(`❌ Error generating blog post ${slug}:`, error);
+              totalErrors++;
+              return { status: 'error', slug, error };
+            }
+          })
+        );
+      }
+      
+      // Update cache file
+      try {
+        cache.lastBuild = Date.now();
+        fs.writeFileSync(cacheFile, JSON.stringify(cache, null, 2));
+        console.log('📦 Updated cache file');
+      } catch (error) {
+        console.warn('⚠️ Failed to write cache file:', error.message);
+        // Continue despite cache write failure
+      }
+      
+      console.log(`✅ Generated ${totalGenerated} blog posts, reused ${totalSkipped} from cache${totalErrors > 0 ? `, encountered ${totalErrors} errors` : ''}`);
+      
+      return true;
+    } catch (error) {
+      console.error('❌ Error importing PureScript modules:', error);
+      return false;
     }
-    
-    return true;
   } catch (error) {
     console.error('❌ Error generating site:', error);
     return false;
@@ -797,7 +858,7 @@ if (isClean || isCleanAll) {
 }
 
 // Compile Tailwind CSS function
-function compileTailwindCSS() {
+async function compileTailwindCSS() {
   console.log('🔄 Compiling Tailwind CSS...');
   
   // Create the output directory if it doesn't exist
@@ -806,185 +867,62 @@ function compileTailwindCSS() {
     fs.mkdirSync(cssDir, { recursive: true });
   }
   
-  // Check for cache
   const cssOutput = path.join(cssDir, 'styles.css');
   const cssInput = path.join(__dirname, 'tailwind', 'tailwind.css');
   const configFile = path.join(__dirname, 'tailwind.config.js');
   
-  // Skip compilation if the output is newer than input and config
-  if (fs.existsSync(cssOutput) && !isClean && !isCleanAll) {
-    const outputStat = fs.statSync(cssOutput);
-    const inputStat = fs.statSync(cssInput);
-    const configStat = fs.statSync(configFile);
-    
-    if (outputStat.mtime > inputStat.mtime && outputStat.mtime > configStat.mtime) {
-      console.log('✅ Using cached CSS (no changes detected)');
-      return true;
-    }
-  }
-  
   try {
-    if (isBun) {
-      // Use Bun.spawn for better performance
-      const args = [
-        'bun', 'tailwindcss', 
-        '-i', cssInput, 
-        '-o', cssOutput, 
-        isProduction ? '--minify' : ''
-      ].filter(Boolean);
+    // Use bunx to run tailwindcss
+    const args = [
+      'bunx',
+      'tailwindcss',
+      '-i', cssInput,
+      '-o', cssOutput,
+      '-c', configFile,
+      isProduction ? '--minify' : '',
+      isWatch ? '--watch' : ''
+    ].filter(Boolean);
+    
+    console.log(`🏃 Running Tailwind CSS with command: ${args.join(' ')}`);
+    
+    if (isWatch) {
+      // In watch mode, run in background
+      const process = Bun.spawn(args, {
+        stdio: ['inherit', 'pipe', 'pipe']
+      });
       
-      console.log(`🏃 Running: ${args.join(' ')}`);
+      process.stdout.pipeTo(new WritableStream({
+        write(chunk) {
+          console.log(new TextDecoder().decode(chunk));
+        }
+      }));
       
-      const result = Bun.spawnSync(args);
+      process.stderr.pipeTo(new WritableStream({
+        write(chunk) {
+          console.error(new TextDecoder().decode(chunk));
+        }
+      }));
       
-      if (result.exitCode !== 0) {
+      return true;
+    } else {
+      // One-time build
+      const result = Bun.spawnSync(args, {
+        stdio: ['inherit', 'pipe', 'pipe']
+      });
+      
+      if (result.success) {
+        console.log('✅ CSS compilation successful');
+        return true;
+      } else {
         console.error('❌ CSS compilation failed');
         console.error(result.stderr.toString());
         return false;
       }
-      
-      console.log('✅ CSS compilation successful');
-      return true;
-    } else {
-      // Fall back to execSync for non-Bun environments
-      execSync(`bun tailwindcss -i ${cssInput} -o ${cssOutput}${isProduction ? ' --minify' : ''}`, { 
-        stdio: 'inherit' 
-      });
-      console.log('✅ CSS compilation successful');
-      return true;
     }
   } catch (error) {
     console.error('❌ Error compiling CSS:', error.message);
     return false;
   }
-}
-
-// Function to process assets efficiently
-async function processAssets(isProduction = false) {
-  console.log(`🔄 ${isProduction ? 'Production mode:' : 'Development mode:'} Processing assets...`);
-  
-  // First compile CSS
-  compileTailwindCSS();
-  
-  // Then process other assets in parallel
-  if (isProduction) {
-    // In production, process all assets in parallel
-    console.log('📦 Processing all assets for production...');
-    
-    // Create a queue of all asset operations
-    const assetOperations = [];
-    
-    // Add CSS directory copy to the operations
-    const distCssDir = path.join(distDir, 'assets', 'css');
-    if (!fs.existsSync(distCssDir)) {
-      fs.mkdirSync(distCssDir, { recursive: true });
-    }
-    
-    // Add operations for each asset directory
-    for (const [urlPath, sourcePath] of Object.entries(ASSET_PATHS)) {
-      if (fs.existsSync(sourcePath)) {
-        const destPath = path.join(distDir, urlPath);
-        
-        // Create destination directory if it doesn't exist
-        if (!fs.existsSync(destPath)) {
-          fs.mkdirSync(destPath, { recursive: true });
-        }
-        
-        // Add copy operations for each file in the directory
-        const files = getAllFiles(sourcePath);
-        for (const file of files) {
-          const relativePath = path.relative(sourcePath, file);
-          const destFile = path.join(destPath, relativePath);
-          
-          // Create directory for the destination file if needed
-          const destFileDir = path.dirname(destFile);
-          if (!fs.existsSync(destFileDir)) {
-            fs.mkdirSync(destFileDir, { recursive: true });
-          }
-          
-          // Skip if the file hasn't been modified
-          if (fs.existsSync(destFile)) {
-            const srcStat = fs.statSync(file);
-            const destStat = fs.statSync(destFile);
-            
-            if (srcStat.mtime <= destStat.mtime) {
-              // File hasn't changed, skip
-              continue;
-            }
-          }
-          
-          // Add copy operation
-          assetOperations.push(() => {
-            try {
-              fs.copyFileSync(file, destFile);
-              return { success: true, file: relativePath };
-            } catch (error) {
-              console.error(`❌ Error copying asset ${file}:`, error);
-              return { success: false, file: relativePath, error };
-            }
-          });
-        }
-      }
-    }
-    
-    // Execute operations in parallel with a maximum concurrency
-    const CONCURRENCY = 20; // Process 20 files at a time
-    let completed = 0;
-    let succeeded = 0;
-    const total = assetOperations.length;
-    
-    console.log(`🔄 Processing ${total} asset files...`);
-    
-    // Process in chunks
-    for (let i = 0; i < total; i += CONCURRENCY) {
-      const chunk = assetOperations.slice(i, i + CONCURRENCY);
-      const results = await Promise.all(chunk.map(op => op()));
-      
-      // Count results
-      for (const result of results) {
-        completed++;
-        if (result.success) succeeded++;
-        
-        // Log progress every 50 files
-        if (completed % 50 === 0 || completed === total) {
-          console.log(`📊 Processed ${completed}/${total} files (${succeeded} succeeded)`);
-        }
-      }
-    }
-    
-    console.log(`✅ Finished processing assets: ${succeeded}/${total} files copied successfully`);
-    
-  } else {
-    // In development mode, only copy essential assets
-    console.log('🔄 Development mode: Only copying essential assets');
-    
-    // Add any essential files that should always be copied
-    const essentialFiles = [
-      { from: path.join(__dirname, 'src', 'public', 'favicon.ico'), to: path.join(distDir, 'favicon.ico') },
-      // Add more essential files here as needed
-    ];
-    
-    for (const file of essentialFiles) {
-      if (fs.existsSync(file.from)) {
-        try {
-          // Create directory if it doesn't exist
-          const dir = path.dirname(file.to);
-          if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-          }
-          
-          fs.copyFileSync(file.from, file.to);
-          console.log(`✅ Copied essential file: ${path.basename(file.from)}`);
-          } catch (error) {
-          console.error(`❌ Error copying essential file ${file.from}:`, error);
-        }
-      } else {
-        console.log(`⚠️ Essential file not found: ${file.from}`);
-      }
-    }
-  }
-  
-  return true;
 }
 
 // Helper function to get all files in a directory recursively
@@ -1001,40 +939,6 @@ function getAllFiles(dirPath, arrayOfFiles = []) {
   }
   
   return arrayOfFiles;
-}
-
-// Replace the old copyAssets function with the new processAssets function
-async function buildSite() {
-  console.log('🔄 Building site...');
-  
-  // Clean if needed
-  if (isClean || isCleanAll) {
-    cleanBuild(isCleanAll);
-  }
-  
-  // 1. Build PureScript
-  if (!buildPureScript()) {
-    console.error('❌ PureScript build failed');
-    return false;
-  }
-  
-  // 2. Ensure asset directories exist
-  ensureAssetDirectories();
-  
-  // 3. Process assets (CSS and other assets)
-  await processAssets(isProduction);
-  
-  // 4. Generate the site
-  if (!await generateSite()) {
-    console.error('❌ Site generation failed');
-    return false;
-  }
-  
-  // 5. Check for missing assets
-  copyMissingAssets();
-  
-  console.log('✅ Site build completed successfully!');
-  return true;
 }
 
 // Improve the error handling in the watch mode
@@ -1237,4 +1141,94 @@ if (isWatch) {
     logger.error(`Error running PureScript with Bun: ${error.message}`);
     process.exit(1);
   });
+}
+
+// Try to start server on a given port, with fallback to other ports
+async function tryStartServer(distDir, initialPort, maxAttempts = 5) {
+  if (!isBun) {
+    console.error('❌ Bun is not available to start the server.');
+    return null;
+  }
+  
+  let port = initialPort;
+  let attempts = 0;
+  
+  while (attempts < maxAttempts) {
+    try {
+      // Server to serve static files
+      const server = Bun.serve({
+        port: port,
+        development: {
+          hmr: true, // Enable Hot Module Reloading
+          console: true, // Enable console logging from browser
+        },
+        async fetch(req) {
+          const url = new URL(req.url);
+          
+          // Regular file handling for HTML and other content
+          let filePath = url.pathname === '/' ? '/index.html' : url.pathname;
+          
+          // Ensure no path traversal
+          filePath = filePath.replace(/\.\.\//g, '').replace(/\.\.\\/g, '');
+          
+          // Handle clean URLs (with and without trailing slash)
+          if (filePath.endsWith('/')) {
+            filePath = filePath + 'index.html';
+          }
+          
+          const fullPath = path.join(distDir, filePath);
+          
+          try {
+            // Check if file exists before returning
+            if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+              // Use Bun.file for faster file serving
+              const file = Bun.file(fullPath);
+              
+              // Set appropriate content type for CSS files
+              if (filePath.endsWith('.css')) {
+                return new Response(file, {
+                  headers: {
+                    'Content-Type': 'text/css',
+                    'Cache-Control': isProduction ? 'public, max-age=31536000' : 'no-cache'
+                  }
+                });
+              }
+              
+              return new Response(file);
+            } else {
+              return new Response('Not Found', { status: 404 });
+            }
+          } catch (error) {
+            console.error(`❌ Error serving file ${fullPath}:`, error);
+            return new Response('Server Error', { status: 500 });
+          }
+        }
+      });
+      
+      console.log(`📡 Development server running at http://localhost:${port}`);
+      return { 
+        server, 
+        port,
+        triggerReload: (path) => {
+          // Implement HMR reload trigger
+          if (server.development?.hmr) {
+            // TODO: Implement HMR
+            console.log('🔄 Hot reloading:', path);
+          }
+        }
+      };
+    } catch (error) {
+      if (error.code === 'EADDRINUSE') {
+        console.warn(`Port ${port} is in use, trying port ${port + 1}...`);
+        port++;
+        attempts++;
+      } else {
+        console.error('❌ Error starting server:', error);
+        return null;
+      }
+    }
+  }
+  
+  console.error(`❌ Failed to find an available port after ${maxAttempts} attempts.`);
+  return null;
 } 
