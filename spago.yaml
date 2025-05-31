@@ -2,6 +2,7 @@ package:
   name: sites
   dependencies:
     - aff
+    - aff-promise
     - arrays
     - console
     - datetime

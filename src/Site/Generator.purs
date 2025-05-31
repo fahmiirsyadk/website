@@ -2,23 +2,23 @@ module Site.Generator where
 
 import Prelude
 
-import Data.Array (filter, length, sortBy)
+import Data.Array (length, sortBy)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
-import Data.String (replaceAll, Pattern(..), Replacement(..))
+import Data.String (Pattern(..), Replacement(..), replaceAll)
 import Data.Traversable (traverse)
-import Effect.Aff (Aff, attempt, catchError, try)
+import Effect.Aff (Aff, catchError, try)
 import Effect.Class (liftEffect)
-import Effect.Console (log) as Console
+import Effect.Console as Console
 import Effect.Exception (message)
 import Node.Encoding (Encoding(..))
 import Node.FS.Aff (readTextFile)
 import Node.Path (FilePath, concat)
 import Site.Config (SiteConfig)
-import Site.Html as H
-import Site.Templates as T
 import Site.Utils.Bundler (bundleCss, bundleJs)
 import Site.Utils.FileSystem (ensureDir, glob, writeFileWithDir, copyFolder)
+import Site.Templates as T
+import Site.Html as H
 import Site.Utils.Foreign (parseMarkdown)
 
 -- | Safe wrapper for catching errors

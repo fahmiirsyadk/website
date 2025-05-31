@@ -3,12 +3,31 @@ import matter from 'gray-matter';
 import MarkdownIt from 'markdown-it';
 import * as shiki from 'shiki';
 
+// Initialize markdown parser with plugins
 const markdown = new MarkdownIt({ 
   html: true,
-  highlight: function(str, lang) {
-    return `<pre class="language-${lang}"><code>${str}</code></pre>`;
+  linkify: true,
+  typographer: true,
+  highlight: async function(str, lang) {
+    if (!lang) {
+      return `<pre><code>${str}</code></pre>`;
+    }
+    try {
+      const highlighter = await shiki.getHighlighter({
+        theme: 'github-dark'
+      });
+      return highlighter.codeToHtml(str, { lang });
+    } catch (e) {
+      console.error('Error highlighting code:', e);
+      return `<pre class="language-${lang}"><code>${str}</code></pre>`;
+    }
   }
 });
+
+// Add plugins
+markdown.use(require('markdown-it-anchor'));
+markdown.use(require('markdown-it-toc-done-right'));
+markdown.use(require('markdown-it-attrs'));
 
 // Load YAML from a string
 export function loadYamlImpl(yamlString) {
@@ -31,16 +50,41 @@ export function parseMarkdownImpl(content) {
   let html = '';
   
   try {
+    // Add default frontmatter values if missing
+    const data = {
+      title: 'Untitled',
+      date: new Date().toISOString(),
+      slug: 'untitled',
+      tags: [],
+      ...parsed.data
+    };
+    
+    // Generate slug if not provided
+    if (!data.slug) {
+      data.slug = data.title.toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '');
+    }
+    
+    // Render markdown
     html = markdown.render(parsed.content);
+    
+    return {
+      matter: data,
+      html: html
+    };
   } catch (e) {
     console.error('Error rendering markdown:', e);
-    html = `<div class="error">Error rendering markdown</div>`;
+    return {
+      matter: {
+        title: 'Error',
+        date: new Date().toISOString(),
+        slug: 'error',
+        tags: []
+      },
+      html: `<div class="error">Error rendering markdown: ${e.message}</div>`
+    };
   }
-  
-  return {
-    matter: parsed.data,
-    html: html
-  };
 }
 
 // Get a string field from frontmatter

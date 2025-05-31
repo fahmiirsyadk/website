@@ -6,6 +6,7 @@
         "core": {
           "dependencies": [
             "aff",
+            "aff-promise",
             "arrays",
             "console",
             "datetime",
@@ -29,6 +30,7 @@
           ],
           "build_plan": [
             "aff",
+            "aff-promise",
             "arraybuffer-types",
             "arrays",
             "bifunctors",
@@ -659,6 +661,15 @@
         "tailrec",
         "transformers",
         "unsafe-coerce"
+      ]
+    },
+    "aff-promise": {
+      "type": "registry",
+      "version": "4.0.0",
+      "integrity": "sha256-Kq5EupbUpXeUXx4JqGQE7/RTTz/H6idzWhsocwlEFhM=",
+      "dependencies": [
+        "aff",
+        "foreign"
       ]
     },
     "arraybuffer-types": {
