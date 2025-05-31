@@ -515,17 +515,12 @@ function buildPureScript() {
 
 // Function to generate the site from PureScript
 async function generateSite() {
-  logger.build('Generating site from PureScript...');
+  console.log('🔄 Generating site from PureScript...');
   try {
     // Create cache directory if it doesn't exist
     const cacheDir = path.join(distDir, '.cache');
     if (!fs.existsSync(cacheDir)) {
-      try {
-        fs.mkdirSync(cacheDir, { recursive: true });
-      } catch (e) {
-        logger.warn(`Could not create cache directory: ${e.message}`);
-        // Continue without caching
-      }
+      fs.mkdirSync(cacheDir, { recursive: true });
     }
     
     // Check if we need to regenerate everything or can use cache
@@ -538,8 +533,7 @@ async function generateSite() {
         const cacheContent = fs.readFileSync(cacheFile, 'utf-8');
         cache = JSON.parse(cacheContent);
       } catch (e) {
-        logger.warn(`Failed to read cache file, will regenerate all pages`);
-        // Continue with empty cache
+        console.warn('⚠️ Failed to read cache file, will regenerate all pages');
       }
     }
     
@@ -551,9 +545,7 @@ async function generateSite() {
     const { extractArticles, extractProjects } = require('./src/Site/Collections.js');
     
     // Get the data
-    logger.build('Loading content collections...');
-    
-    try {
+    console.log('📊 Loading content collections...');
     const [articles, projects] = await Promise.all([
       extractArticles(),
       extractProjects()
@@ -568,7 +560,7 @@ async function generateSite() {
     };
     
     // Generate the HTML for index
-      logger.build('Generating homepage...');
+    console.log('🏠 Generating homepage...');
     const html = homepage(collections);
     
     // Ensure the dist directory exists
@@ -577,10 +569,10 @@ async function generateSite() {
     // Write the HTML to index.html
     fs.writeFileSync(indexPath, html);
     
-      logger.success('Site index generation successful');
+    console.log('✅ Site index generation successful');
     
     // Generate blog post pages
-      logger.build('Generating blog post pages...');
+    console.log('📝 Generating blog post pages...');
     
     // Create articles directory if it doesn't exist
     const articlesDir = path.join(distDir, 'articles');
@@ -596,7 +588,7 @@ async function generateSite() {
       try {
         return fs.existsSync(filePath) && fs.statSync(filePath).isFile();
       } catch (error) {
-          logger.error(`Error checking if path is a file: ${filePath}`, error);
+        console.error(`Error checking if path is a file: ${filePath}`, error);
         return false;
       }
     }
@@ -607,53 +599,53 @@ async function generateSite() {
       ...projects.map(project => project.slug)
     ];
     
-      // Process slugs in parallel but with concurrency control
-      const concurrency = 5; // Process 5 at a time
-      const chunks = [];
-      
-      // Split slugs into chunks for controlled parallelism
-      for (let i = 0; i < allSlugs.length; i += concurrency) {
-        chunks.push(allSlugs.slice(i, i + concurrency));
-      }
-      
-      let totalGenerated = 0;
-      let totalSkipped = 0;
-      
-      // Process each chunk sequentially
-      for (const chunk of chunks) {
-        // Process slugs in this chunk in parallel
+    // Process slugs in parallel but with concurrency control
+    const concurrency = 5; // Process 5 at a time
+    const chunks = [];
+    
+    // Split slugs into chunks for controlled parallelism
+    for (let i = 0; i < allSlugs.length; i += concurrency) {
+      chunks.push(allSlugs.slice(i, i + concurrency));
+    }
+    
+    let totalGenerated = 0;
+    let totalSkipped = 0;
+    
+    // Process each chunk sequentially
+    for (const chunk of chunks) {
+      // Process slugs in this chunk in parallel
     const results = await Promise.all(
-          chunk.map(async (slug) => {
+        chunk.map(async (slug) => {
         try {
           if (!slug) {
-                logger.error("Encountered empty slug, skipping");
-                return { status: 'error', slug };
-              }
-              
-              // Check if this post has changed and needs regeneration
-              const contentHash = computePostHash(articles, projects, slug);
-              const postDir = path.join(articlesDir, slug);
-              const outputPath = path.join(postDir, 'index.html');
-              
-              // Skip regeneration if the post hasn't changed
-              if (
-                cache.pages[slug] === contentHash && 
-                fs.existsSync(outputPath) && 
-                !isClean && 
-                !isCleanAll
-              ) {
-                totalSkipped++;
-                return { status: 'cached', slug };
-              }
-              
-              // Generate post content
+            console.error("Encountered empty slug, skipping");
+              return { status: 'error', slug };
+            }
+            
+            // Check if this post has changed and needs regeneration
+            const contentHash = computePostHash(articles, projects, slug);
+            const postDir = path.join(articlesDir, slug);
+            const outputPath = path.join(postDir, 'index.html');
+            
+            // Skip regeneration if the post hasn't changed
+            if (
+              cache.pages[slug] === contentHash && 
+              fs.existsSync(outputPath) && 
+              !isClean && 
+              !isCleanAll
+            ) {
+              totalSkipped++;
+              return { status: 'cached', slug };
+            }
+            
+            // Generate post content
           const getBlogPostFn = await getBlogPostImpl(slug);
           const postData = await getBlogPostFn();
           
           // Check if we got valid post data
           if (!postData || !postData.title) {
-                logger.error(`Invalid post data for slug: ${slug}`);
-                return { status: 'error', slug };
+            console.error(`Invalid post data for slug: ${slug}`);
+              return { status: 'error', slug };
           }
           
           // Generate HTML
@@ -664,7 +656,7 @@ async function generateSite() {
             fs.mkdirSync(postDir, { recursive: true });
           } else if (!fs.statSync(postDir).isDirectory()) {
             // If it exists but is not a directory, remove it and create directory
-                logger.warn(`Path exists but is not a directory: ${postDir}, recreating...`);
+            console.warn(`Path exists but is not a directory: ${postDir}, recreating...`);
             fs.unlinkSync(postDir);
             fs.mkdirSync(postDir, { recursive: true });
           }
@@ -672,29 +664,24 @@ async function generateSite() {
           // Write to file as index.html in the post directory
           fs.writeFileSync(outputPath, postHtml);
           
-              // Update cache
-              cache.pages[slug] = contentHash;
-              
-              totalGenerated++;
-              return { status: 'generated', slug };
+            // Update cache
+            cache.pages[slug] = contentHash;
+            
+            totalGenerated++;
+            return { status: 'generated', slug };
         } catch (error) {
-              logger.error(`Error generating blog post ${slug}: ${error.message}`);
-              return { status: 'error', slug, error };
+          console.error(`❌ Error generating blog post ${slug}:`, error);
+            return { status: 'error', slug, error };
         }
       })
     );
-      }
-      
-      // Update cache file
-      try {
-        cache.lastBuild = Date.now();
-        fs.writeFileSync(cacheFile, JSON.stringify(cache, null, 2));
-      } catch (e) {
-        logger.warn(`Failed to write cache file: ${e.message}`);
-        // Continue without saving cache
-      }
-      
-      logger.success(`Generated ${totalGenerated} blog posts, reused ${totalSkipped} from cache`);
+    }
+    
+    // Update cache file
+    cache.lastBuild = Date.now();
+    fs.writeFileSync(cacheFile, JSON.stringify(cache, null, 2));
+    
+    console.log(`✅ Generated ${totalGenerated} blog posts, reused ${totalSkipped} from cache`);
     
     // Clean up old .html files (they've been replaced by the /slug/index.html structure)
     const oldHtmlFiles = fs.readdirSync(articlesDir)
@@ -702,32 +689,22 @@ async function generateSite() {
       .map(file => path.join(articlesDir, file))
       .filter(filePath => isFile(filePath)); // Only include actual files, not directories
     
-      if (oldHtmlFiles.length > 0) {
-        logger.info(`Found ${oldHtmlFiles.length} old HTML files to clean up`);
+    if (oldHtmlFiles.length > 0) {
+    console.log(`Found ${oldHtmlFiles.length} old HTML files to clean up`);
     
     oldHtmlFiles.forEach(file => {
       try {
         fs.unlinkSync(file);
-            logger.debug(`Removed old file: ${file}`);
+        console.log(`🧹 Removed old file: ${file}`);
       } catch (error) {
-            logger.error(`Error removing old file ${file}: ${error.message}`);
+        console.error(`❌ Error removing old file ${file}:`, error);
       }
     });
-      }
+    }
     
     return true;
-    } catch (collectionsError) {
-      logger.error(`Error loading collections: ${collectionsError.message}`);
-      if (isDebug) {
-        console.error(collectionsError.stack);
-      }
-      return false;
-    }
   } catch (error) {
-    logger.error(`Error generating site: ${error.message}`);
-    if (isDebug) {
-      console.error(error.stack);
-    }
+    console.error('❌ Error generating site:', error);
     return false;
   }
 }
