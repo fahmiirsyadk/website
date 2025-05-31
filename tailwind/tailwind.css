@@ -1,0 +1,65 @@
+/* Tailwind directives */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles */
+body {
+  @apply antialiased;
+}
+
+@layer base {
+    @font-face {
+        font-family: 'JetBrainsMono';
+        font-style: normal;
+        font-weight: 400;
+        src: local('JetBrainsMono'),
+            url(/assets/fonts/JetBrainsMono-Regular.woff2) format('woff2');
+        font-display: swap; 
+    }
+
+    @font-face {
+        font-family: 'JetBrainsMono';
+        font-style: italic;
+        font-weight: 400;
+        src: local('JetBrainsMono'),
+            url(/assets/fonts/JetBrainsMono-Italic.woff2) format('woff2');
+        font-display: swap; 
+    }
+
+    @font-face {
+        font-family: 'JetBrainsMono';
+        font-style: normal;
+        font-weight: 500;
+        src: local('JetBrainsMono'),
+            url(/assets/fonts/JetBrainsMono-Medium.woff2) format('woff2');
+        font-display: swap; 
+    }
+
+    @font-face {
+        font-family: 'JetBrainsMono';
+        font-style: normal;
+        font-weight: 700;
+        src: local('JetBrainsMono'),
+            url(/assets/fonts/JetBrainsMono-Bold.woff2) format('woff2');
+        font-display: swap; 
+    }
+
+    @font-face {
+        font-family: 'Swear Banner';
+        font-style: italic;
+        font-weight: bold;
+        src: local('Swear'),
+            url(/assets/fonts/SwearBanner-BoldItalic.otf) format('opentype');
+        font-display: swap; 
+    }
+
+    @font-face {
+        font-family: 'Swear Banner';
+        font-style: italic;
+        font-weight: 500;
+        src: local('Swear'),
+            url(/assets/fonts/SwearBanner-MediumItalic.otf) format('opentype');
+        font-display: swap; 
+    }
+}

@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+.spago/
+output/
+
+# Build outputs
+dist/
+.cache/
+
+# Editor directories and files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.*
+
+# Generated files
+src/public/assets/css/styles.css
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

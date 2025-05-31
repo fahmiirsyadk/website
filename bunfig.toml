@@ -1,0 +1,21 @@
+[serve]
+port = 3000
+hostname = "localhost"
+development = true
+
+[serve.static]
+# Serve static files from the dist directory
+directory = "dist"
+# Make environment variables available to client-side code
+env = "BUN_PUBLIC_*"
+
+[build]
+# The entry point is the PureScript output
+entry = ["output/Main/index.js"]
+outdir = "dist"
+
+[watch]
+# Watch for changes in the src directory and output directory
+paths = ["src", "output"]
+# Ignore node_modules and other directories
+ignore = ["node_modules", "dist", ".spago"] 

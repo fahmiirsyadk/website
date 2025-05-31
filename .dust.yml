@@ -1,0 +1,11 @@
+dust:
+  openBrowser: false
+  syntaxThemeUrl: "src/utils/monochrome-dark.json"
+
+collections:
+  writings:
+    layout: layout_blog
+    source: src/posts/articles
+  # projects:
+  #   layout: layout_blog
+  #   source: src/posts/projects

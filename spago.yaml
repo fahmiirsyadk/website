@@ -1,0 +1,31 @@
+package:
+  name: sites
+  dependencies:
+    - aff
+    - arrays
+    - console
+    - datetime
+    - effect
+    - either
+    - exceptions
+    - foldable-traversable
+    - foreign
+    - foreign-object
+    - maybe
+    - node-buffer
+    - node-fs
+    - node-path
+    - node-process
+    - now
+    - ordered-collections
+    - prelude
+    - strings
+    - transformers
+    - tuples
+  test:
+    main: Test.Main
+    dependencies: []
+workspace:
+  packageSet:
+    registry: 64.10.0
+  extraPackages: {}
