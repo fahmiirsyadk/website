@@ -90,3 +90,20 @@ pageTemplate title content = do
   
   html <- Components.loadAndRenderComponent Components.layout props
   pure $ fromString html 
+
+-- | Base HTML template
+baseTemplate :: String -> String -> String -> Html
+baseTemplate title description content =
+  H.html [ Tuple "lang" "en" ] [
+    H.head [] [
+      H.meta [ Tuple "charset" "utf-8" ] []
+      , H.meta [ Tuple "name" "viewport", Tuple "content" "width=device-width, initial-scale=1.0" ] []
+      , H.meta [ Tuple "name" "description", Tuple "content" description ] []
+      , H.title [] [ H.text title ]
+      , H.link [ Tuple "rel" "stylesheet", Tuple "href" "assets/css/styles.css" ] []
+      , H.style [] [ H.text "#terminal::-webkit-scrollbar { width: 0; }" ]
+    ]
+    , H.body [ Tuple "class" "bg-neutral-100" ] [
+        H.raw content
+    ]
+  ] 

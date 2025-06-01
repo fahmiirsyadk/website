@@ -559,7 +559,6 @@ async function generateSite() {
     // Generate the HTML for index
     console.log('🏠 Generating homepage...');
     const html = homepage(collections);
-    console.log('html', html);
     
     // Ensure the dist directory exists
     const indexPath = path.join(distDir, 'index.html');
@@ -722,27 +721,21 @@ function cleanBuild(cleanAll = false) {
   // Always clean the dist directory
   if (fs.existsSync(distDir)) {
     try {
-      if (isBun) {
-        // Use Bun.spawnSync for faster directory cleanup
-        Bun.spawnSync(['rm', '-rf', path.join(distDir, '*')]);
-        console.log(`✅ Cleaned dist directory with Bun`);
-      } else {
-        // Remove all files in dist but keep the directory
-        const entries = fs.readdirSync(distDir, { withFileTypes: true });
-        
-        for (const entry of entries) {
-          const fullPath = path.join(distDir, entry.name);
-          if (entry.isDirectory()) {
-            fs.rmSync(fullPath, { recursive: true, force: true });
-            console.log(`🧹 Removed directory: ${fullPath}`);
-          } else {
-            fs.unlinkSync(fullPath);
-            console.log(`🧹 Removed file: ${fullPath}`);
-          }
+      // Remove all files in dist but keep the directory
+      const entries = fs.readdirSync(distDir, { withFileTypes: true });
+      
+      for (const entry of entries) {
+        const fullPath = path.join(distDir, entry.name);
+        if (entry.isDirectory()) {
+          fs.rmSync(fullPath, { recursive: true, force: true });
+          console.log(`🧹 Removed directory: ${fullPath}`);
+        } else {
+          fs.unlinkSync(fullPath);
+          console.log(`🧹 Removed file: ${fullPath}`);
         }
-        
-        console.log(`✅ Cleaned dist directory`);
       }
+      
+      console.log(`✅ Cleaned dist directory`);
     } catch (error) {
       console.error(`❌ Error cleaning dist directory:`, error);
     }
@@ -754,14 +747,8 @@ function cleanBuild(cleanAll = false) {
   // If cleanAll is true, also clean the output directory
   if (cleanAll && fs.existsSync(path.join(__dirname, 'output'))) {
     try {
-      if (isBun) {
-        // Use Bun.spawnSync for faster directory cleanup
-        Bun.spawnSync(['rm', '-rf', path.join(__dirname, 'output')]);
-        console.log(`✅ Cleaned output directory with Bun`);
-      } else {
-        fs.rmSync(path.join(__dirname, 'output'), { recursive: true, force: true });
-        console.log(`✅ Cleaned output directory`);
-      }
+      fs.rmSync(path.join(__dirname, 'output'), { recursive: true, force: true });
+      console.log(`✅ Cleaned output directory`);
     } catch (error) {
       console.error(`❌ Error cleaning output directory:`, error);
     }
@@ -774,7 +761,7 @@ if (isClean || isCleanAll) {
 }
 
 // Compile Tailwind CSS function
-function compileTailwindCSS() {
+async function compileTailwindCSS() {
   console.log('🔄 Compiling Tailwind CSS...');
   
   // Create the output directory if it doesn't exist
@@ -783,56 +770,45 @@ function compileTailwindCSS() {
     fs.mkdirSync(cssDir, { recursive: true });
   }
   
-  // Check for cache
   const cssOutput = path.join(cssDir, 'styles.css');
   const cssInput = path.join(__dirname, 'tailwind', 'tailwind.css');
   const configFile = path.join(__dirname, 'tailwind.config.js');
   
-  // Skip compilation if the output is newer than input and config
-  // if (fs.existsSync(cssOutput) && !isClean && !isCleanAll) {
-  //   const outputStat = fs.statSync(cssOutput);
-  //   const inputStat = fs.statSync(cssInput);
-  //   const configStat = fs.statSync(configFile);
-    
-  //   if (outputStat.mtime > inputStat.mtime && outputStat.mtime > configStat.mtime) {
-  //     console.log('✅ Using cached CSS (no changes detected)');
-  //     return true;
-  //   }
-  // }
-  
   try {
-    if (isBun) {
-      // Use Bun.spawn for better performance
-      const args = [
-        'bunx', '@tailwindcss/cli', 
-        '-i', cssInput, 
-        '-o', cssOutput, 
-        isProduction ? '--minify' : ''
-      ].filter(Boolean);
-      
-      console.log(`🏃 Running: ${args.join(' ')}`);
-      
-      const result = Bun.spawnSync(args);
-      
-      if (result.exitCode !== 0) {
-        console.error('❌ CSS compilation failed');
-        console.error(result.stderr.toString());
-        return false;
-      }
-      
-      console.log('✅ CSS compilation successful');
-      return true;
-    } else {
-      // Fall back to execSync for non-Bun environments
-      execSync(`bun tailwindcss -i ${cssInput} -o ${cssOutput}${isProduction ? ' --minify' : ''}`, { 
-        stdio: 'inherit' 
+    // Use Tailwind CLI directly for better performance
+    const args = [
+      'bunx', 'tailwindcss',
+      '-i', cssInput,
+      '-o', cssOutput,
+      '-c', configFile,
+      '--minify',
+      '--no-autoprefixer', // Disable autoprefixer for faster builds
+      isWatch ? '--watch' : ''
+    ].filter(Boolean);
+
+    if (isWatch) {
+      // In watch mode, spawn the process and keep it running
+      const process = Bun.spawn(args, {
+        stdio: ['inherit', 'inherit', 'inherit']
       });
+      console.log('✅ CSS compilation started in watch mode');
+      return process;
+    } else {
+      // For one-time builds, use spawnSync
+      const result = Bun.spawnSync(args, {
+        stdio: ['inherit', 'inherit', 'inherit']
+      });
+
+      if (result.exitCode !== 0) {
+        throw new Error('CSS compilation failed');
+      }
+
       console.log('✅ CSS compilation successful');
-      return true;
+      return result;
     }
   } catch (error) {
-    console.error('❌ Error compiling CSS:', error.message);
-    return false;
+    console.error('❌ CSS compilation failed:', error);
+    throw error;
   }
 }
 
@@ -841,7 +817,7 @@ async function processAssets(isProduction = false) {
   console.log(`🔄 ${isProduction ? 'Production mode:' : 'Development mode:'} Processing assets...`);
   
   // First compile CSS
-  compileTailwindCSS();
+  await compileTailwindCSS();
   
   // Then process other assets in parallel
   if (isProduction) {

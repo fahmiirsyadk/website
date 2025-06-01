@@ -82,7 +82,7 @@ customCSS =
 smallIntroduction :: H.Html
 smallIntroduction =
   H.h1 [ Tuple "class" "text-base sm:text-sm" ] [
-    H.raw "I'm <strong>fah</strong>, a front-end developer who <i>kinda</i> like experiment with things. Through this site, I write journals, portfolios, or showcases some of my experiments."
+    H.raw "I'm <strong>test</strong>, a front-end developer who <i>kinda</i> like experiment with things. Through this site, I write journals, portfolios, or showcases some of my experiments."
   ]
 
 -- | TOC section
@@ -294,7 +294,7 @@ customMain src =
             H.div [ Tuple "class" "flex w-full justify-center items-center"] [
               logoSection 60 30
             ]
-            , H.div [ Tuple "class" "relative my-4 oveflow-hidden"] [
+            , H.div [ Tuple "class" "relative my-4 overflow-hidden"] [
                 H.div [ Tuple "class" "w-full h-[200px] sm:h-[160px] flex justify-center relative overflow-hidden cursor-pointer group" ] [
                   H.pre [ Tuple "class" "text-sm text-center absolute select-none z-10 sm:text-xs" ] (map H.text Ascii.borderASCII)
                 , H.pre [ Tuple "class" "text-sm text-center subpixel-antialiased select-none absolute font-bold translate ease-in-out z-0 duration-[1.2s] group-hover:scale-150 group-hover:translate-y-[-50px] sm:text-xs" ] (map H.text Ascii.banner1ASCII)
@@ -355,5 +355,8 @@ homepage info =
     
     -- Create sources with both writings and projects
     sources = { writings, projects }
+    
+    -- Generate the HTML using customMain
+    html = customMain sources
   in
-  "<!DOCTYPE html>\n" <> H.render (customMain sources) 
+  "<!DOCTYPE html>\n" <> H.render html 

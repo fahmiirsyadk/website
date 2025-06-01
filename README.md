@@ -22,8 +22,8 @@ Personal website to unify my fragmented thoughts
 
 ```bash
 # Clone the repository
-git clone https://github.com/fahmiirsyadk/site/
-cd site
+git clone https://github.com/fahmiirsyadk/website/
+cd website
 
 # Install dependencies
 bun install
@@ -91,10 +91,7 @@ Assets are handled differently in development and production:
 - `bun build`: Build for development
 - `bun build:prod`: Build for production
 - `bun clean`: Clean build outputs
-- `bun serve`: Alias for dev
 - `bun spago:build`: Build PureScript code only
-- `bun spago:watch`: Watch and build PureScript code
-- `bun generate-images`: Generate placeholder images for testing
 
 ## Customization
 
@@ -105,16 +102,6 @@ To customize the site:
 3. Add assets in `src/public/assets/`
 4. Modify Tailwind config in `tailwind/`
 
-## Optimizations
-
-The project now leverages Bun's native APIs for improved performance:
-
-- **File System Operations**: Using Bun's file APIs instead of Node.js fs module
-- **Process Management**: Using Bun.spawn instead of child_process for better performance
-- **Hot Module Reloading**: Implemented using Bun's WebSocket capabilities
-- **Bundling**: Utilizing Bun's built-in bundler for JS and CSS
-- **Development Server**: Fast static file serving with Bun.serve()
-
 ## Ongoing Improvements
 
 1. [x] Create PureScript modules for server configuration and data management
@@ -122,5 +109,5 @@ The project now leverages Bun's native APIs for improved performance:
 3. [x] Optimize file operations with Bun's native APIs
 4. [ ] Enhance the collections module
 5. [ ] Create PureScript-based file watchers for development
-6. [ ] Implement hot module reloading in PureScript
+6. [x] Implement hot module reloading in PureScript
 

@@ -3,12 +3,13 @@ const { fontFamily } = require('tailwindcss/defaultTheme');
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    './dist/**/*.html', 
-    './dist/*.html',
-    './src/**/*.purs',
-    './src/**/*.js',
-    './src/**/*.html',
-    './src/**/*.md'
+    './dist/**/*.html',
+    './src/Site/**/*.purs',
+    './src/Site/**/*.js',
+    './src/components/**/*.purs',
+    './src/layouts/**/*.purs',
+    './src/pages/**/*.purs',
+    './src/posts/**/*.md'
   ],
   darkMode: 'class',
   theme: {
@@ -26,8 +27,7 @@ module.exports = {
     },
     extend: {
       fontFamily: {
-        'sans': ['JetBrainsMono', ...fontFamily.sans ],
-        'swear': ['Swear Banner', ...fontFamily.serif ],
+        'sans': ['JetBrainsMono', ...fontFamily.sans],
       },
     },
   },
@@ -35,6 +35,6 @@ module.exports = {
     extend: {},
   },
   plugins: [
-    require('@tailwindcss/typography')
+    require('@tailwindcss/typography'),
   ],
 }
