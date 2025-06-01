@@ -20,6 +20,7 @@
     "@tailwindcss/typography": "^0.5.10",
     "@types/fs-extra": "^11.0.4",
     "caniuse-lite": "^1.0.30001720",
+    "fast-glob": "^3.3.3",
     "fs-extra": "^11.3.0",
     "gray-matter": "^4.0.3",
     "markdown-it-anchor": "^9.2.0",

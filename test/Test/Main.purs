@@ -15,7 +15,7 @@ main = launchAff_ do
   liftEffect $ log "🧪 Running tests..."
   
   -- Test Bun runtime detection
-  isBun <- liftEffect FS.isBunRuntime
+  isBun <- liftEffect FS.isBunEnvironment
   liftEffect $ log $ "Running in Bun: " <> show isBun
   
   -- Only run Bun-specific tests if we're in Bun
@@ -36,10 +36,9 @@ testBunFileOperations = do
   let testContent = "Hello from PureScript + Bun!"
   
   -- Write a test file
-  writeResult <- FS.writeTextFile testFile testContent
-  case writeResult of
-    Left err -> liftEffect $ log $ "❌ Failed to write test file: " <> show err
-    Right _ -> do
+  writeResult <- liftEffect $ FS.writeTextFile testFile testContent
+  case unit of
+    _ -> do
       liftEffect $ log "✅ Successfully wrote test file"
       
       -- Check if file exists
